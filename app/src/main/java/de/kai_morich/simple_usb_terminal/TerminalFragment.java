@@ -434,7 +434,7 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
     }
 
     private ArrayList<Entry> dataValues(){
-
+//test comment
         for(int i = 0; i < 500; i++) {
             dataVals.add(new Entry(i, dataArray[i]));
         }
