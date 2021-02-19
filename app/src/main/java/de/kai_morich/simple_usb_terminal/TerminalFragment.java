@@ -40,6 +40,8 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 
 import com.github.mikephil.charting.charts.LineChart;
+import com.github.mikephil.charting.components.Legend;
+import com.github.mikephil.charting.components.XAxis;
 import com.github.mikephil.charting.components.YAxis;
 import com.github.mikephil.charting.data.Entry;
 import com.github.mikephil.charting.data.LineData;
@@ -80,9 +82,10 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
     private boolean pendingNewline = false;
     private String newline = TextUtil.newline_crlf;
     private int dataArray[];
-    int cnt = 0;
+    int cnt = 5;
+    int multiplier = 1;
     ArrayList dataVals = new ArrayList<Entry>();
-
+    LineData data = new LineData();
 
     public TerminalFragment() {
         broadcastReceiver = new BroadcastReceiver() {
@@ -108,7 +111,7 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
         deviceId = getArguments().getInt("device");
         portNum = getArguments().getInt("port");
         baudRate = getArguments().getInt("baud");
-        dataArray = new int[1000];
+        dataArray = new int[2000];
 
     }
 
@@ -196,6 +199,7 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
         lineChart = view.findViewById(R.id.line_chart);
 
         btnDisconnect = view.findViewById(R.id.disconnect_btn);
+        btnDisconnect.setEnabled(true);
 
         sendText = view.findViewById(R.id.send_text);
         hexWatcher = new TextUtil.HexWatcher(sendText);
@@ -206,22 +210,66 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
         View sendBtn = view.findViewById(R.id.send_btn);
         sendBtn.setOnClickListener(v -> send(sendText.getText().toString()));
 
+
+        // add empty data
+        lineChart.setData(data);
+
+
         btnDisconnect.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                dataVals.add(new Entry(150, 34));
+
+                disconnect();
+                /*dataValues();
+                data.notifyDataChanged();
                 lineChart.notifyDataSetChanged();
-                lineChart.invalidate();
-                //lineChart.moveViewToX(150);
+                //lineChart.invalidate();
+                Log.d("MSG", "OnClick");
+                lineChart.setVisibleXRange(0,100);
+                /*LineData data = lineChart.getData();
+
+                if(data != null){
+                    ILineDataSet set = data.getDataSetByIndex(0);
+
+                    if(set == null){
+                        set = createSet();
+                        data.addDataSet(set);
+                    }
+                    Log.d("Counter", "addEntry");
+                    data.addEntry(new Entry(cnt, (float)Math.random()*10), 0);
+                    data.notifyDataChanged();
+
+                    lineChart.setVisibleXRangeMaximum(120);
+                    // let the chart know it's data has changed
+                    lineChart.notifyDataSetChanged();
+                    //lineChart.moveViewToX(data.getEntryCount());
+                    lineChart.invalidate();
+                }
+                cnt++;
+                Log.d("Counter", String.valueOf(cnt));*/
             }
         });
 
         controlLines = new ControlLines(view);
-
         return view;
     }
 
+   /* private LineDataSet createSet() {
 
+        LineDataSet set = new LineDataSet(null, "Dynamic Data");
+        set.setAxisDependency(YAxis.AxisDependency.LEFT);
+        set.setColor(ColorTemplate.getHoloBlue());
+        set.setCircleColor(Color.WHITE);
+        set.setLineWidth(2f);
+        set.setCircleRadius(4f);
+        set.setFillAlpha(65);
+        set.setFillColor(ColorTemplate.getHoloBlue());
+        set.setHighLightColor(Color.rgb(244, 117, 117));
+        set.setValueTextColor(Color.WHITE);
+        set.setValueTextSize(9f);
+        set.setDrawValues(false);
+        return set;
+    }*/
     @Override
     public void onCreateOptionsMenu(@NonNull Menu menu, MenuInflater inflater) {
         inflater.inflate(R.menu.menu_terminal, menu);
@@ -434,8 +482,8 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
     }
 
     private ArrayList<Entry> dataValues(){
-//test comment
-        for(int i = 0; i < 500; i++) {
+
+        for(int i = 0; i < 50*multiplier; i++) {
             dataVals.add(new Entry(i, dataArray[i]));
         }
         return dataVals;
@@ -469,7 +517,6 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
                 createChart(); //Create chart
                 setVisibilityForChart(); //Hide received data and show chart
                 btnDisconnect.setEnabled(true);
-
             }
 
         } catch (NumberFormatException e) {
@@ -479,6 +526,19 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
             Log.d("Try catch", "Array index" + e);
         }
         cnt++;
+        if(cnt%50 == 0) {
+
+
+            multiplier++;
+            dataValues();
+
+            //data.notifyDataChanged();
+            lineChart.notifyDataSetChanged();
+            lineChart.invalidate();
+            lineChart.setVisibleXRange(0,50*multiplier);
+            Log.d("msgarray", String.valueOf(dataArray[25*multiplier]));
+        }
+        Log.d("Counter", String.valueOf(cnt));
     }
 
     private void setVisibilityForChart(){
