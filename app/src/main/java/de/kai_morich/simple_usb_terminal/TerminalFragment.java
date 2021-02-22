@@ -40,12 +40,15 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 
 import com.github.mikephil.charting.charts.LineChart;
+import com.github.mikephil.charting.components.AxisBase;
 import com.github.mikephil.charting.components.Legend;
 import com.github.mikephil.charting.components.XAxis;
 import com.github.mikephil.charting.components.YAxis;
 import com.github.mikephil.charting.data.Entry;
 import com.github.mikephil.charting.data.LineData;
 import com.github.mikephil.charting.data.LineDataSet;
+import com.github.mikephil.charting.formatter.IAxisValueFormatter;
+import com.github.mikephil.charting.formatter.IndexAxisValueFormatter;
 import com.github.mikephil.charting.interfaces.datasets.ILineDataSet;
 import com.github.mikephil.charting.utils.ColorTemplate;
 import com.hoho.android.usbserial.driver.UsbSerialDriver;
@@ -82,8 +85,11 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
     private boolean pendingNewline = false;
     private String newline = TextUtil.newline_crlf;
     private int dataArray[];
-    int cnt = 5;
+    int cnt = 0;
+    int hCnt = 0;
     int multiplier = 1;
+    int offset = 50;
+    boolean isChartCreated = false;
     ArrayList dataVals = new ArrayList<Entry>();
     LineData data = new LineData();
 
@@ -111,8 +117,7 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
         deviceId = getArguments().getInt("device");
         portNum = getArguments().getInt("port");
         baudRate = getArguments().getInt("baud");
-        dataArray = new int[2000];
-
+        dataArray = new int[1000];
     }
 
     @Override
@@ -199,7 +204,6 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
         lineChart = view.findViewById(R.id.line_chart);
 
         btnDisconnect = view.findViewById(R.id.disconnect_btn);
-        btnDisconnect.setEnabled(true);
 
         sendText = view.findViewById(R.id.send_text);
         hexWatcher = new TextUtil.HexWatcher(sendText);
@@ -209,8 +213,6 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
 
         View sendBtn = view.findViewById(R.id.send_btn);
         sendBtn.setOnClickListener(v -> send(sendText.getText().toString()));
-
-
         // add empty data
         lineChart.setData(data);
 
@@ -219,34 +221,14 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
             @Override
             public void onClick(View view) {
 
-                disconnect();
-                /*dataValues();
+                dataValues();
+                lineChart.setVisibleXRange(0,offset*multiplier);
                 data.notifyDataChanged();
                 lineChart.notifyDataSetChanged();
-                //lineChart.invalidate();
-                Log.d("MSG", "OnClick");
-                lineChart.setVisibleXRange(0,100);
-                /*LineData data = lineChart.getData();
-
-                if(data != null){
-                    ILineDataSet set = data.getDataSetByIndex(0);
-
-                    if(set == null){
-                        set = createSet();
-                        data.addDataSet(set);
-                    }
-                    Log.d("Counter", "addEntry");
-                    data.addEntry(new Entry(cnt, (float)Math.random()*10), 0);
-                    data.notifyDataChanged();
-
-                    lineChart.setVisibleXRangeMaximum(120);
-                    // let the chart know it's data has changed
-                    lineChart.notifyDataSetChanged();
-                    //lineChart.moveViewToX(data.getEntryCount());
-                    lineChart.invalidate();
-                }
-                cnt++;
-                Log.d("Counter", String.valueOf(cnt));*/
+                lineChart.invalidate();
+                btnDisconnect.setEnabled(true);
+                //connect();
+                multiplier++;
             }
         });
 
@@ -254,22 +236,6 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
         return view;
     }
 
-   /* private LineDataSet createSet() {
-
-        LineDataSet set = new LineDataSet(null, "Dynamic Data");
-        set.setAxisDependency(YAxis.AxisDependency.LEFT);
-        set.setColor(ColorTemplate.getHoloBlue());
-        set.setCircleColor(Color.WHITE);
-        set.setLineWidth(2f);
-        set.setCircleRadius(4f);
-        set.setFillAlpha(65);
-        set.setFillColor(ColorTemplate.getHoloBlue());
-        set.setHighLightColor(Color.rgb(244, 117, 117));
-        set.setValueTextColor(Color.WHITE);
-        set.setValueTextSize(9f);
-        set.setDrawValues(false);
-        return set;
-    }*/
     @Override
     public void onCreateOptionsMenu(@NonNull Menu menu, MenuInflater inflater) {
         inflater.inflate(R.menu.menu_terminal, menu);
@@ -483,8 +449,13 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
 
     private ArrayList<Entry> dataValues(){
 
-        for(int i = 0; i < 50*multiplier; i++) {
+        //Log.d("dataValues", "dataValues");
+        Log.d("dataValues", String.valueOf(multiplier));
+        Log.d("dataValuesO", String.valueOf((multiplier-1)*offset));
+        //for(int i = (offset * (multiplier - 1)); i < 50*multiplier; i++) {
+        for(int i = (offset * (multiplier - 1)); i < 50*multiplier; i++) {
             dataVals.add(new Entry(i, dataArray[i]));
+            Log.d("ForLoop", String.valueOf(i) + " " + String.valueOf(dataArray[i]));
         }
         return dataVals;
     }
@@ -504,19 +475,36 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
         LineData data = new LineData(dataSets);
         lineChart.setData(data);
         lineChart.invalidate();
-
+        isChartCreated = true;
     }
 
     private void createDataForChart(String msg){
+
         try {
 
             dataArray[cnt] = convertStringtoInt(msg);
 
-            if(cnt == 50) {
-                //disconnect();  //Transmition stop
-                createChart(); //Create chart
+            if(cnt == 50 & !isChartCreated) {
+                createChart(); //Create chart & isChartCreated = true
                 setVisibilityForChart(); //Hide received data and show chart
                 btnDisconnect.setEnabled(true);
+                disconnect();  //Transmition stop
+                multiplier++;
+            } else if(isChartCreated) {
+                if(hCnt == 50) {
+
+                    disconnect();
+
+                    dataValues();
+                    data.notifyDataChanged();
+                    lineChart.notifyDataSetChanged();
+                    lineChart.invalidate();
+                    btnDisconnect.setEnabled(true);
+
+                    multiplier++;
+                    hCnt = 0;
+                }
+                hCnt++;
             }
 
         } catch (NumberFormatException e) {
@@ -525,20 +513,10 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
         } catch (java.lang.ArrayIndexOutOfBoundsException e) {
             Log.d("Try catch", "Array index" + e);
         }
-        cnt++;
-        if(cnt%50 == 0) {
+        ++cnt;
 
-
-            multiplier++;
-            dataValues();
-
-            //data.notifyDataChanged();
-            lineChart.notifyDataSetChanged();
-            lineChart.invalidate();
-            lineChart.setVisibleXRange(0,50*multiplier);
-            Log.d("msgarray", String.valueOf(dataArray[25*multiplier]));
-        }
         Log.d("Counter", String.valueOf(cnt));
+        Log.d("Multiplier", String.valueOf(multiplier));
     }
 
     private void setVisibilityForChart(){

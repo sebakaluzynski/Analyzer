@@ -9,8 +9,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 
 public class MainActivity extends AppCompatActivity implements FragmentManager.OnBackStackChangedListener {
-    private int dataArray[];
-    int cnt = 0;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
