@@ -9,7 +9,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
-import android.graphics.Color;
 import android.hardware.usb.UsbDevice;
 import android.hardware.usb.UsbDeviceConnection;
 import android.hardware.usb.UsbManager;
@@ -40,17 +39,10 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 
 import com.github.mikephil.charting.charts.LineChart;
-import com.github.mikephil.charting.components.AxisBase;
-import com.github.mikephil.charting.components.Legend;
-import com.github.mikephil.charting.components.XAxis;
-import com.github.mikephil.charting.components.YAxis;
 import com.github.mikephil.charting.data.Entry;
 import com.github.mikephil.charting.data.LineData;
 import com.github.mikephil.charting.data.LineDataSet;
-import com.github.mikephil.charting.formatter.IAxisValueFormatter;
-import com.github.mikephil.charting.formatter.IndexAxisValueFormatter;
 import com.github.mikephil.charting.interfaces.datasets.ILineDataSet;
-import com.github.mikephil.charting.utils.ColorTemplate;
 import com.hoho.android.usbserial.driver.UsbSerialDriver;
 import com.hoho.android.usbserial.driver.UsbSerialPort;
 import com.hoho.android.usbserial.driver.UsbSerialProber;
@@ -80,15 +72,17 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
 
     private Connected connected = Connected.False;
     private boolean initialStart = true;
+    private boolean status = true;
+    private boolean refresh = false;
     private boolean hexEnabled = false;
     private boolean controlLinesEnabled = false;
     private boolean pendingNewline = false;
     private String newline = TextUtil.newline_crlf;
-    private int dataArray[];
+    private int[] dataArray;
     int cnt = 0;
     int hCnt = 0;
     int multiplier = 1;
-    int offset = 50;
+    int offset = 25;
     boolean isChartCreated = false;
     ArrayList dataVals = new ArrayList<Entry>();
     LineData data = new LineData();
@@ -220,15 +214,13 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
         btnDisconnect.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-
-                dataValues();
-                lineChart.setVisibleXRange(0,offset*multiplier);
-                data.notifyDataChanged();
-                lineChart.notifyDataSetChanged();
-                lineChart.invalidate();
-                btnDisconnect.setEnabled(true);
-                //connect();
-                multiplier++;
+                Log.d("Multiplier", String.valueOf(multiplier + " " +offset*multiplier));
+                //lineChart.setVisibleXRange(0,(offset*multiplier)/2);
+                //createIsChart();
+                refresh=true;
+                status=true;
+                btnDisconnect.setEnabled(false);
+                connect();
             }
         });
 
@@ -385,6 +377,17 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
     }
 
     private void receive(byte[] data) {
+        if(cnt == offset & !refresh){
+            disconnect();
+            createChart(); //Create chart & isChartCreated = true
+            setVisibilityForChart();
+            btnDisconnect.setEnabled(true);
+            multiplier++;
+            lineChart.setVisibleXRange(0,(offset*multiplier));
+            Log.d("transmition", "cnt: " + String.valueOf(cnt) + " multiplier: " + String.valueOf(multiplier));
+        }
+
+
         if(hexEnabled) {
             receiveText.append(TextUtil.toHexString(data) + '\n');
 
@@ -408,9 +411,27 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
             msg = msg.replace(TextUtil.newline_lf, TextUtil.newline_without_lf);
 
 
+            if(status) {
+                if(!refresh) {
+                    prepareData(msg);
+                    Log.d("transmition", "transmition");
+                }
+                if (cnt == multiplier*offset) {
+                    disconnect();
+                    hCnt = 0;
+                    Log.d("transmition", "disconnected");
+                    createIsChart();
+                    btnDisconnect.setEnabled(true);
+                    multiplier++;
+                }
+                if(hCnt <= offset & cnt >=offset) {
+                    Log.d("transmition", "connected");
+                    prepareData(msg);
+                }
+                Log.d("transmition", String.valueOf(cnt));
+                cnt++;
+            }
 
-            createDataForChart(msg);
-            Log.d("msg", "transmition");
         }
     }
 
@@ -449,14 +470,16 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
 
     private ArrayList<Entry> dataValues(){
 
-        //Log.d("dataValues", "dataValues");
         Log.d("dataValues", String.valueOf(multiplier));
         Log.d("dataValuesO", String.valueOf((multiplier-1)*offset));
         //for(int i = (offset * (multiplier - 1)); i < 50*multiplier; i++) {
-        for(int i = (offset * (multiplier - 1)); i < 50*multiplier; i++) {
-            dataVals.add(new Entry(i, dataArray[i]));
+        for(int i = (offset * (multiplier - 1)); i < (offset*multiplier); i++) {
             Log.d("ForLoop", String.valueOf(i) + " " + String.valueOf(dataArray[i]));
+            dataVals.add(new Entry(i, dataArray[i]));
+            Log.d("ForLoop", dataVals.toString());
         }
+
+
         return dataVals;
     }
 
@@ -478,46 +501,71 @@ public class TerminalFragment extends Fragment implements ServiceConnection, Ser
         isChartCreated = true;
     }
 
-    private void createDataForChart(String msg){
+    private void createIsChart(){
+        LineDataSet lineDataSet = new LineDataSet(dataValues(), "Legenda");
+        ArrayList<ILineDataSet> dataSets = new ArrayList<>();
+        dataSets.add(lineDataSet);
+
+        LineData data = new LineData(dataSets);
+        lineChart.setData(data);
+        lineChart.invalidate();
+        //isChartCreated = true;
+    }
+
+    /*private void createDataForChart(String msg){
+
 
         try {
 
             dataArray[cnt] = convertStringtoInt(msg);
-
-            if(cnt == 50 & !isChartCreated) {
+            //Log.d("hCnt", String.valueOf(cnt) + " " + String.valueOf(dataArray[cnt]));
+            //if(cnt >= offset & !isChartCreated) {
+            if(cnt >= offset) {
+                disconnect();
                 createChart(); //Create chart & isChartCreated = true
                 setVisibilityForChart(); //Hide received data and show chart
                 btnDisconnect.setEnabled(true);
-                disconnect();  //Transmition stop
+                  //Transmition stop
                 multiplier++;
-            } else if(isChartCreated) {
-                if(hCnt == 50) {
-
+                Log.d("hcnt3", "hcnt3");
+            } /*else if(isChartCreated) {
+                hCnt++;
+                if(hCnt >= 10) {
                     disconnect();
-
-                    dataValues();
-                    data.notifyDataChanged();
-                    lineChart.notifyDataSetChanged();
-                    lineChart.invalidate();
                     btnDisconnect.setEnabled(true);
-
                     multiplier++;
                     hCnt = 0;
+                    Log.d("hcnt", String.valueOf(hCnt));
                 }
-                hCnt++;
             }
-
+            Log.d("hcnt2", String.valueOf(hCnt) + " " + String.valueOf(dataArray[cnt]));
         } catch (NumberFormatException e) {
+            //dataArray = Arrays.copyOf(dataArray, dataArray.length - 1); //delete incorrect values
+            //--cnt; //undo counter
+        } catch (java.lang.ArrayIndexOutOfBoundsException e) {
+            Log.d("Try catch", "Array index" + e);
+        }
+        ++cnt;
+        Log.d("MsgCount", String.valueOf(cnt));
+    }*/
+
+    private void prepareData(String msg){
+
+        Log.d("CreateChart", "Count1 " + String.valueOf(cnt));
+        try {
+            dataArray[cnt] = convertStringtoInt(msg);
+            Log.d("hCnt", String.valueOf(cnt) + " " + String.valueOf(dataArray[cnt]));
+        } catch (NumberFormatException e) {
+            Log.d("Try catch", "Open");
             dataArray = Arrays.copyOf(dataArray, dataArray.length - 1); //delete incorrect values
             --cnt; //undo counter
         } catch (java.lang.ArrayIndexOutOfBoundsException e) {
             Log.d("Try catch", "Array index" + e);
         }
-        ++cnt;
-
-        Log.d("Counter", String.valueOf(cnt));
-        Log.d("Multiplier", String.valueOf(multiplier));
+        Log.d("CreateChart", "Count2");
     }
+
+
 
     private void setVisibilityForChart(){
         receiveText.setVisibility(View.GONE);
